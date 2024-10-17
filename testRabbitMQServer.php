@@ -3,108 +3,157 @@
 require_once('path.inc');
 require_once('get_host_info.inc');
 require_once('rabbitMQLib.inc');
-require_once('login.php.inc'); // Include the login validation script
 
-// Function to handle user login by checking the database for valid credentials
-function doLogin($username, $password)
-{
+// Generate secure session token
+function generateSessionToken() {
+    return bin2hex(random_bytes(16));
+}
+
+// User login and session creation
+function doLogin($username, $password) {
     $db = new mysqli("127.0.0.1", "root", "12345", "login");
 
-    if ($db->connect_errno != 0) {
-        echo "Error connecting to database: " . $db->connect_error . PHP_EOL;
-        return array("returnCode" => '1', "message" => "Error connecting to database");
+    if ($db->connect_errno) {
+        echo "Database connection failed: " . $db->connect_error . PHP_EOL;
+        return array("returnCode" => '1', "message" => "Database connection failed");
     }
 
-    // Escape the input to prevent SQL injection
     $un = $db->real_escape_string($username);
-    $pw = $db->real_escape_string($password);
+    $query = "SELECT password FROM users WHERE username = '$un'";
+    $result = $db->query($query);
 
-    // Check for the user in the database
-    $query = "SELECT * FROM users WHERE screenname = '$un'";
-    $response = $db->query($query);
+    if ($result && $result->num_rows > 0) {
+        $row = $result->fetch_assoc();
+        $storedPassword = $row["password"];
 
-    if ($response->num_rows > 0) {
-        $row = $response->fetch_assoc();
-        echo "Stored password: '" . $row["password"] . "'" . PHP_EOL;
-        echo "Input password: '" . $pw . "'" . PHP_EOL;
+        if ($storedPassword === $password) {
+            echo "Login successful for $username" . PHP_EOL;
 
-        if ($row["password"] === $pw) { // Exact match
-            echo "passwords match for $username" . PHP_EOL;
-            return array("returnCode" => '0', "message" => "Login successful");
+            // Generate a session token and store it in the database
+            $sessionToken = generateSessionToken();
+            $insertSessionQuery = "INSERT INTO sessions (username, session_token) 
+                                   VALUES ('$un', '$sessionToken') 
+                                   ON DUPLICATE KEY UPDATE session_token = '$sessionToken'";
+
+            if ($db->query($insertSessionQuery) === TRUE) {
+                return array(
+                    "returnCode" => '0',
+                    "message" => "Login successful",
+                    "sessionToken" => $sessionToken
+                );
+            } else {
+                return array("returnCode" => '1', "message" => "Failed to create session");
+            }
         } else {
-            echo "passwords did not match for $username" . PHP_EOL;
+            echo "Incorrect password for $username" . PHP_EOL;
             return array("returnCode" => '1', "message" => "Incorrect password");
         }
     } else {
-        echo "no user found with username $username" . PHP_EOL;
+        echo "No user found with username $username" . PHP_EOL;
         return array("returnCode" => '1', "message" => "Username not found");
     }
 }
 
-// Function to handle user registration by inserting new credentials into the database
+// User registration
 function doRegister($username, $password) {
     $db = new mysqli("127.0.0.1", "root", "12345", "login");
 
-    // Check for database connection errors
-    if ($db->connect_errno != 0) {
-        echo "Error connecting to database: " . $db->connect_error . PHP_EOL;
-        return array("returnCode" => '1', "message" => "Error connecting to database");
+    if ($db->connect_errno) {
+        echo "Database connection failed: " . $db->connect_error . PHP_EOL;
+        return array("returnCode" => '1', "message" => "Database connection failed");
     }
 
-    // Escape the input to prevent SQL injection
     $un = $db->real_escape_string($username);
     $pw = $db->real_escape_string($password);
 
-    // Check if the user already exists
-    $checkUserQuery = "SELECT * FROM users WHERE screenname = '$un'";
+    $checkUserQuery = "SELECT * FROM users WHERE username = '$un'";
     $response = $db->query($checkUserQuery);
 
-    if ($response->num_rows > 0) {
+    if ($response && $response->num_rows > 0) {
         return array("returnCode" => '1', "message" => "Username already exists");
     }
 
-    // Insert the new user into the database
-    $insertUserQuery = "INSERT INTO users (screenname, password) VALUES ('$un', '$pw')";
+    $insertUserQuery = "INSERT INTO users (username, password) VALUES ('$un', '$pw')";
     if ($db->query($insertUserQuery) === TRUE) {
         return array("returnCode" => '0', "message" => "Registration successful");
     } else {
-        return array("returnCode" => '1', "message" => "Error registering user");
+        return array("returnCode" => '1', "message" => "Registration failed");
     }
 }
 
-// Function to process incoming requests from RabbitMQ (login, register, etc.)
-function requestProcessor($request)
-{
-    echo "received request" . PHP_EOL;
-    var_dump($request);
-    
-    // Check for valid request type
-    if (!isset($request['type'])) {
-        return "ERROR: unsupported message type";
+// Validate session token from database
+function doValidateSession($sessionToken) {
+    $db = new mysqli("127.0.0.1", "root", "12345", "login");
+
+    if ($db->connect_errno) {
+        echo "Database connection failed: " . $db->connect_error . PHP_EOL;
+        return array("returnCode" => '1', "message" => "Database connection failed");
     }
 
-    // Handle different types of requests (login, register, session validation)
+    $token = $db->real_escape_string($sessionToken);
+    $query = "SELECT * FROM sessions WHERE session_token = '$token'";
+    $response = $db->query($query);
+
+    if ($response && $response->num_rows > 0) {
+        return array("returnCode" => '0', "message" => "Session valid");
+    } else {
+        return array("returnCode" => '1', "message" => "Invalid session");
+    }
+}
+
+// Handle logout and remove the session token from database
+function doLogout($sessionToken) {
+    $db = new mysqli("127.0.0.1", "root", "12345", "login");
+
+    if ($db->connect_errno) {
+        echo "Database connection failed: " . $db->connect_error . PHP_EOL;
+        return array("returnCode" => '1', "message" => "Database connection failed");
+    }
+
+    $token = $db->real_escape_string($sessionToken);
+
+    // Delete the session token from the sessions table
+    $deleteSessionQuery = "DELETE FROM sessions WHERE session_token = '$token'";
+
+    if ($db->query($deleteSessionQuery) === TRUE) {
+        echo "Session successfully deleted for token: $token" . PHP_EOL;
+        return array("returnCode" => '0', "message" => "Logout successful");
+    } else {
+        return array("returnCode" => '1', "message" => "Failed to logout");
+    }
+}
+
+
+// Process incoming requests
+function requestProcessor($request) {
+    echo "Received request" . PHP_EOL;
+    var_dump($request);
+
+    if (!isset($request['type'])) {
+        return array("returnCode" => '1', "message" => "Invalid request type");
+    }
+
     switch ($request['type']) {
         case "login":
             return doLogin($request['username'], $request['password']);
-        case "validate_session":
-            return doValidate($request['sessionId']);
         case "register":
             return doRegister($request['username'], $request['password']);
+        case "validate_session":
+            return doValidateSession($request['sessionToken']);
+        case "logout":
+            return doLogout($request['sessionToken']);
+        default:
+            return array("returnCode" => '1', "message" => "Unsupported request type");
     }
-
-    return array("returnCode" => '0', 'message' => "Server received request and processed");
 }
 
-// Create an instance of rabbitMQServer to connect to VM #1 (the RabbitMQ broker)
+// Start RabbitMQ server
 $server = new rabbitMQServer("testRabbitMQ.ini", "testServer");
 
 echo "testRabbitMQServer BEGIN" . PHP_EOL;
-
-// Start processing incoming requests
 $server->process_requests('requestProcessor');
-
 echo "testRabbitMQServer END" . PHP_EOL;
+
 exit();
 ?>
 
