@@ -4,7 +4,7 @@ header('Content-Type: application/json');
 $data = json_decode(file_get_contents('php://input'), true);
 $sessionToken = $data['token'];
 
-$db = new mysqli("127.0.0.1", "root", "12345", "login");
+$db = new mysqli("127.0.0.1", "appuser", "12345", "login");
 
 $stmt = $db->prepare("SELECT * FROM sessions WHERE session_token = ?");
 $stmt->bind_param("s", $sessionToken);

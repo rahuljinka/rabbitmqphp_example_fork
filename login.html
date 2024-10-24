@@ -4,22 +4,75 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 100px;
+        }
+
+        h1 {
+            color: #333;
+        }
+
+        section {
+            border: 1px solid #ddd;
+            display: inline-block;
+            padding: 20px;
+            border-radius: 8px;
+        }
+
+        input[type="text"], input[type="password"] {
+            width: 80%;
+            padding: 8px;
+            margin: 10px 0;
+        }
+
+        input[type="submit"], button {
+            padding: 10px 20px;
+            margin-top: 10px;
+            border: none;
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        button {
+            background-color: #008CBA;
+        }
+
+        input[type="submit"]:hover, button:hover {
+            opacity: 0.8;
+        }
+    </style>
 </head>
 <body>
     <h1>Welcome to Our Page</h1>
 
     <section id="login-section">
         <h2>Login</h2>
-        <form method="POST" action="login.php">
+        <form method="POST" action="login.php" onsubmit="storeCredentials()">
             <label for="username">Username:</label>
             <input type="text" id="username" name="username" required><br><br>
+
             <label for="password">Password:</label>
             <input type="password" id="password" name="password" required><br><br>
+
             <input type="submit" value="Login">
         </form>
 
         <p>Don't have an account? Sign Up Here</p>
-        <button onclick="window.location.href='register.php'">Register</button>
+        <button onclick="window.location.href='register.html'">Register</button>
     </section>
+
+    <script>
+        // Store credentials temporarily in session storage on form submission
+        function storeCredentials() {
+            const username = document.getElementById('username').value;
+            sessionStorage.setItem('username', username);
+        }
+    </script>
 </body>
 </html>
+
