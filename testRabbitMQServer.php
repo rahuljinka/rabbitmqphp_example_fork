@@ -4,29 +4,31 @@ require_once('path.inc');
 require_once('get_host_info.inc');
 require_once('rabbitMQLib.inc');
 
-// Generate secure session token
+// Generate a secure session token
 function generateSessionToken() {
     return bin2hex(random_bytes(16));
 }
 
-// User login and session creation
+// Handle login requests
 function doLogin($username, $password) {
-    $db = new mysqli("127.0.0.1", "root", "12345", "login");
+    $db = new mysqli("127.0.0.1", "appuser", "12345", "login");
 
     if ($db->connect_errno) {
-        echo "Database connection failed: " . $db->connect_error . PHP_EOL;
+        echo "Error: Database connection failed." . PHP_EOL;
         return array("returnCode" => '1', "message" => "Database connection failed");
     }
 
     $un = $db->real_escape_string($username);
+    $pw = $db->real_escape_string($password);
+
+    // Fetch the password from the database
     $query = "SELECT password FROM users WHERE username = '$un'";
     $result = $db->query($query);
 
     if ($result && $result->num_rows > 0) {
         $row = $result->fetch_assoc();
-        $storedPassword = $row["password"];
 
-        if ($storedPassword === $password) {
+        if ($row["password"] === $pw) {
             echo "Login successful for $username" . PHP_EOL;
 
             // Generate a session token and store it in the database
@@ -45,21 +47,18 @@ function doLogin($username, $password) {
                 return array("returnCode" => '1', "message" => "Failed to create session");
             }
         } else {
-            echo "Incorrect password for $username" . PHP_EOL;
             return array("returnCode" => '1', "message" => "Incorrect password");
         }
     } else {
-        echo "No user found with username $username" . PHP_EOL;
         return array("returnCode" => '1', "message" => "Username not found");
     }
 }
 
-// User registration
+// Handle registration requests
 function doRegister($username, $password) {
-    $db = new mysqli("127.0.0.1", "root", "12345", "login");
+    $db = new mysqli("127.0.0.1", "appuser", "12345", "login");
 
     if ($db->connect_errno) {
-        echo "Database connection failed: " . $db->connect_error . PHP_EOL;
         return array("returnCode" => '1', "message" => "Database connection failed");
     }
 
@@ -81,12 +80,11 @@ function doRegister($username, $password) {
     }
 }
 
-// Validate session token from database
+// Validate a session token
 function doValidateSession($sessionToken) {
-    $db = new mysqli("127.0.0.1", "root", "12345", "login");
+    $db = new mysqli("127.0.0.1", "appuser", "12345", "login");
 
     if ($db->connect_errno) {
-        echo "Database connection failed: " . $db->connect_error . PHP_EOL;
         return array("returnCode" => '1', "message" => "Database connection failed");
     }
 
@@ -101,30 +99,26 @@ function doValidateSession($sessionToken) {
     }
 }
 
-// Handle logout and remove the session token from database
+// Logout and delete the session token
 function doLogout($sessionToken) {
-    $db = new mysqli("127.0.0.1", "root", "12345", "login");
+    $db = new mysqli("127.0.0.1", "appuser", "12345", "login");
 
     if ($db->connect_errno) {
-        echo "Database connection failed: " . $db->connect_error . PHP_EOL;
         return array("returnCode" => '1', "message" => "Database connection failed");
     }
 
     $token = $db->real_escape_string($sessionToken);
+    $deleteQuery = "DELETE FROM sessions WHERE session_token = '$token'";
 
-    // Delete the session token from the sessions table
-    $deleteSessionQuery = "DELETE FROM sessions WHERE session_token = '$token'";
-
-    if ($db->query($deleteSessionQuery) === TRUE) {
-        echo "Session successfully deleted for token: $token" . PHP_EOL;
+    if ($db->query($deleteQuery) === TRUE) {
+        echo "Logout successful. Session deleted for token: $token" . PHP_EOL;
         return array("returnCode" => '0', "message" => "Logout successful");
     } else {
         return array("returnCode" => '1', "message" => "Failed to logout");
     }
 }
 
-
-// Process incoming requests
+// Process incoming RabbitMQ requests
 function requestProcessor($request) {
     echo "Received request" . PHP_EOL;
     var_dump($request);
@@ -147,7 +141,7 @@ function requestProcessor($request) {
     }
 }
 
-// Start RabbitMQ server
+// Start the RabbitMQ server
 $server = new rabbitMQServer("testRabbitMQ.ini", "testServer");
 
 echo "testRabbitMQServer BEGIN" . PHP_EOL;
