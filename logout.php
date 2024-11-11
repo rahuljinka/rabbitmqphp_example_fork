@@ -12,7 +12,7 @@ if (!$sessionToken) {
 error_log("Attempting to log out with session token: $sessionToken");
 
 try {
-    $db = new mysqli("127.0.0.1", "appuser", "12345", "login");
+    $db = new mysqli("10.144.245.96", "appuser", "12345", "login");
 
     if ($db->connect_errno) {
         throw new Exception("Database connection failed: " . $db->connect_error);

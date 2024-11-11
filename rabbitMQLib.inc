@@ -104,7 +104,6 @@ class rabbitMQServer
 
 class rabbitMQClient
 {
-    // Add the missing properties
     private $conn_queue;
     private $machine = "";
     public $BROKER_HOST;
@@ -133,7 +132,6 @@ class rabbitMQClient
         $this->queue = $this->machine[$server]["QUEUE"];
     }
 
-    // Add the process_response callback function
     function process_response($response)
     {
         $uid = $response->getCorrelationId();
@@ -142,7 +140,6 @@ class rabbitMQClient
             return true;
         }
 
-        // Acknowledge the response
         $this->conn_queue->ack($response->getDeliveryTag());
 
         $body = $response->getBody();
@@ -177,18 +174,15 @@ class rabbitMQClient
             $exchange->setName($this->exchange);
             $exchange->setType($this->exchange_type);
 
-            // Setup callback queue
             $callback_queue = new AMQPQueue($channel);
             $callback_queue->setName($this->queue . "_response");
             $callback_queue->declareQueue();
             $callback_queue->bind($exchange->getName(), $this->routing_key . ".response");
 
-            // Setup the main queue
             $this->conn_queue = new AMQPQueue($channel);
             $this->conn_queue->setName($this->queue);
             $this->conn_queue->bind($exchange->getName(), $this->routing_key);
 
-            // Publish the message
             $exchange->publish($json_message, $this->routing_key, AMQP_NOPARAM, array(
                 'reply_to' => $callback_queue->getName(),
                 'correlation_id' => $uid,

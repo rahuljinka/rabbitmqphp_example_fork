@@ -1,5 +1,4 @@
-<!DOCTYPE html>
-console.log("Session Token: ", sessionToken); 
+<!DOCTYPE html> 
 <html lang="en">
 <head>
     <meta charset="UTF-8">

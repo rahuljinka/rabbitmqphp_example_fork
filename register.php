@@ -1,6 +1,5 @@
 <?php
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['username']) && !empty($_POST['password'])) {
-    // Capture the input from the form
     $username = $_POST['username'];
     $password = $_POST['password'];
 
@@ -19,7 +18,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['username']) && !empt
         $response = $client->send_request($request);
         if ($response['returnCode'] === '0') {
             echo "<p>Registration successful! Redirecting to login page...</p>";
-            header('Refresh: 5; URL=login.html');  // Redirect to login.html after 5 seconds
+            header('Refresh: 5; URL=login.html');  
             exit();
         } else {
             echo "<p>Registration failed: " . htmlspecialchars($response['message']) . "</p>";
